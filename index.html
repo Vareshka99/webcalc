@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+	<title>Web-калькулятор</title>
+	<style type="text/css">
+		body {
+			background: darkslategrey;
+			color: floralwhite;
+			font-family: verdana;
+		}
+
+		.main {
+			width: 100%; 
+			float: left;
+			font-family: verdana;
+		}
+
+		.disp_window {
+			width: 94%;
+			height: 100%;
+			overflow: auto;
+			outline: 0;
+			border: 0;
+			background: darkslategrey;
+			position: relative;
+			margin-top: 0;
+			margin-left: 2%;
+			margin-right: 0;
+			margin-bottom: 0;
+			scrollbar-color: navy darkslategrey;
+			text-align: left;
+		}
+
+		::-webkit-scrollbar {
+			width: 7px;
+		}
+
+		::-webkit-scrollbar-track {
+			background: darkslategrey;
+		}
+
+		::-webkit-scrollbar-thumb {
+			background: navy;
+		}
+
+		.container {
+			width: 95%;
+			height: 320px;
+			border: 2px solid navy;
+			border-radius: 15px;
+			box-shadow: 3px 3px 3px 1px black;
+			margin: 0;
+		}
+		
+		.progedit {
+			width: 94%;
+			height: 94%;
+			outline: 0;
+			border: 0;
+			background: darkslategrey;
+			position: relative;
+			margin-top: 2%;
+			margin-left: 2%;
+			margin-right: 0;
+			margin-bottom: 0;
+			background: darkslategrey;
+			color: floralwhite;
+			font-family: verdana;
+			scrollbar-color: navy darkslategrey;
+		}
+	
+		.delimiter {
+			height: 50px;
+			background: darkslategrey;
+		}
+	
+		.buttonbar {
+			margin: 20px;
+		}	
+		
+		.controlbutton {
+			width: 75%;
+			font-family: verdana;
+			background: silver;
+			color: navy;
+			border-radius: 10px;
+		}
+
+		.helpbutton {
+			width: 25%;
+			font-family: verdana;
+			background: silver;
+			color: navy;
+			border-radius: 10px;
+		}
+		
+		::selection {
+			background: floralwhite;
+			color: darkslategrey;
+		}
+	</style>
+	<script type="text/javascript">
+		var program, data, stack;
+		var labels;
+		var progpos;
+		var framepos;
+		var inpos;
+		var errmsg;
+		var helpmode;
+		
+		var instructions = [
+			[ 'NOP', 0 ], [ 'PUSH', 7 ], [ 'POP', 1 ], [ 'XCHG', 0 ], [ 'FRM', 0 ], [ 'PUSHFR', 0 ], [ 'POPFR', 0 ],
+			[ 'ADD', 0 ], [ 'SUB', 0 ], [ 'MUL', 0 ], [ 'DIV', 0 ], [ 'POW', 0 ], [ 'ROOT', 0 ], [ 'LOGYX', 0 ],
+			[ 'MOD', 0 ], [ 'INC', 1 ], [ 'DEC', 1 ], [ 'NEG', 0 ],
+			[ 'AND', 0 ], [ 'OR', 0 ], [ 'NOT', 0 ], [ 'XOR', 0 ],
+			[ 'BAND', 0 ], [ 'BOR', 0 ], [ 'BNOT', 0 ], [ 'BXOR', 0 ],
+			[ 'CMP', 0 ], [ 'SETEQ', 0 ], [ 'SETNE', 0 ], [ 'SETLE', 0 ], 
+			[ 'SETGE', 0, ], [ 'SETLT', 0 ], [ 'SETGT', 0 ],
+			[ 'JYES', 5 ], [ 'JNO',  5 ], [ 'JMP', 5 ],  [ 'CALL', 5 ], [ 'RET', 0 ], 
+			[ 'DROP', 2 ], [ 'RSRV', 2 ], [ 'EXIT', 0 ],
+			[ 'GET', 0 ], [ 'PUT', 0 ], [ 'EOI', 0 ]
+		];
+
+		function err_bad_address() { errmsg = 'недействительный адрес'; return null; }
+		function err_bad_param() { errmsg = 'недопустимый параметр'; return null; }
+		function err_stack_underflow() { errmsg = 'стек пуст!'; return false; }
+		function err_numeric_error() { errmsg = 'невозможно вычислить'; return false; }
+		function err_divide_by_zero() { errmsg = 'делить на нуль нельзя!'; return false; }
+		function err_out_of_program() { errmsg = 'программа закончилась'; return false; }
+		function err_no_such_instruction() { errmsg = 'нет такой команды'; return false; }
+		function err_parameter_required() { errmsg = 'требуется параметр!'; return false; }
+		function err_end_of_input() { errmsg = 'нет данных для ввода'; return false; }
+		function err_label_exists() { errmsg = 'метка уже определена'; return false; }
+		function err_label_not_found() { errmsg = 'метка не определена'; return false; }
+
+		function eval_val(id, p)
+		{
+			var ev = eval_addr(id, p);
+			if (ev[1] >= ev[0].length)
+				return err_bad_address();
+			return ev[0][ev[1]];
+		}
+
+		function eval_addr(id, p)
+		{
+			var addr;
+			if (p[0] == 3)
+				addr = p[1];
+			else
+				addr = eval_val(p[0], p[1]);
+			if (addr === null)
+				return null;
+			if (id == 0)
+				return [data, addr];
+			if (id == 1)
+				return [stack, addr];
+			var fp = stack.length - framepos;
+			if (fp < 0)
+				return err_bad_address();
+			return [stack, addr + fp];
+		}
+		
+		function eval_addrparam(p)
+		{
+			if (p[0] >= 3)
+				return err_bad_param();
+			return eval_addr(p[0], p[1]);
+		}
+
+		function eval_valparam(p)
+		{
+			if (p[0] >= 3)
+				return p[1];
+			return eval_val(p[0], p[1]);
+		}
+		
+		function resolve_labels()
+		{
+			var i;
+			for (i = 0; i < program.length; i++)
+			{
+				if (program[i][1])
+				{
+					if (program[i][1][0] == 4)
+					{
+						program[i][1][0] = 3;
+						if (!labels.has(program[i][1][1]))
+							return err_label_not_found();
+						program[i][1][1] = labels.get(program[i][1][1]);
+					}
+				}
+			}
+			return true;
+		}
+		
+		function i_NOP(param)
+		{
+			return true;
+		}
+		
+		function i_PUSH(param)
+		{
+			var v = eval_valparam(param);
+			if (v === null)
+				return false;
+			stack.unshift(v);
+			return true;
+		}
+
+		function i_POP(param)
+		{
+			var ev;
+			if (stack.length < 1)
+				return err_stack_underflow();
+			ev = eval_addrparam(param);
+			if (!ev)
+				return false;
+			if (ev[1] >= ev[0].length)
+				return err_bad_address();
+			ev[0][ev[1]] = stack[0];
+			stack.shift();
+			return true;
+		}
+
+		function i_XCHG(param)
+		{
+			if (stack.length < 2)
+				return err_stack_underflow();
+			var v = stack[0];
+			stack[0] = stack[1];
+			stack[1] = v;
+			return true;
+		}
+
+		function i_FRM(param)
+		{
+			framepos = stack.length;
+			return true;
+		}
+
+		function i_PUSHFR(param)
+		{
+			var fp = stack.length + 1 - framepos;
+			stack.unshift(fp);
+			framepos = stack.length;
+			return true;
+		}
+
+		function i_POPFR(param)
+		{
+			var diff = stack.shift();
+			framepos -= diff;
+			return true;
+		}
+
+		function i_INC(param)
+		{
+			var ev = eval_addrparam(param);
+			if (!ev)
+				return false;
+			if (ev[1] >= ev[0].length)
+				return err_bad_address();
+			var v = ev[0][ev[1]] + 1;
+			if (!isFinite(v))
+				return err_numeric_error();
+			ev[0][ev[1]] = v;
+			return true;
+		}
+
+		function i_DEC(param)
+		{
+			var ev = eval_addrparam(param);
+			if (!ev)
+				return false;
+			if (ev[1] >= ev[0].length)
+				return err_bad_address();
+			var v = ev[0][ev[1]] - 1;
+			if (!isFinite(v))
+				return err_numeric_error();
+			ev[0][ev[1]] = v;
+			return true;
+		}
+
+		function i_DROP(param)
+		{
+			var v = eval_valparam(param);
+			if (v === null)
+				return false;
+			if (stack.length < v)
+				return err_stack_underflow();
+			while (v > 0)
+			{
+				stack.shift();
+				v--;
+			}
+			return true;
+		}
+
+		function i_RSRV(param)
+		{
+			var v = eval_valparam(param);
+			if (v === null)
+				return false;
+			if (v > 4096)
+				return err_bad_address();
+			while (v > 0)
+			{
+				stack.unshift(0);
+				v--;
+			}
+			return true;
+		}
+
+		function i_ADD(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			v = stack[0] + v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_SUB(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			v = stack[0] - v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_MUL(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			v = stack[0] * v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_DIV(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			if (v == 0)
+				return err_divide_by_zero();
+			v = stack[0] / v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_POW(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			if (v == 0)
+				return err_divide_by_zero();
+			v = Math.pow(stack[0], v);
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_ROOT(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			if (v == 0)
+				return err_divide_by_zero();
+			v = Math.pow(stack[0], 1.0 / v);
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_LOGYX(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			if (v == 0)
+				return err_divide_by_zero();
+			v = Math.log(stack[0]) / Math.log(v);
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_MOD(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			if (v == 0)
+				return err_divide_by_zero();
+			v = stack[0] % v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_NEG(param)
+		{
+			var v;
+			if (stack.length < 1)
+				return err_stack_underflow();
+			v = -stack[0];
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack[0] = v;
+			return true;
+		}
+
+		function i_AND(param)
+		{
+			var v1, v2;
+			if (stack.length < 2)
+				return err_stack_underflow();		
+			v1 = stack.shift();
+			v2 = stack[0];
+			v1 = (v1 == 0) ? 0 : 1;
+			v2 = (v2 == 0) ? 0 : 1;
+			stack[0] = v2 & v1;
+			return true;
+		}
+		
+		function i_OR(param)
+		{
+			var v1, v2;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v1 = stack.shift();
+			v2 = stack[0];
+			v1 = (v1 == 0) ? 0 : 1;
+			v2 = (v2 == 0) ? 0 : 1;
+			stack[0] = v2 | v1;
+			return true;
+		}
+
+		function i_XOR(param)
+		{
+			var v1, v2;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v1 = stack.shift();
+			v2 = stack[0];
+			v1 = (v1 == 0) ? 0 : 1;
+			v2 = (v2 == 0) ? 0 : 1;
+			stack[0] = v2 ^ v1;
+			return true;
+		}
+
+		function i_NOT(param)
+		{
+			var v;
+			if (stack.length < 1)
+				return err_stack_underflow();
+			v = stack[0];
+			v = (v == 0) ? 0 : 1;
+			stack[0] = v ^ 1;
+			return true;
+		}
+
+		function i_BAND(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			v = stack[0] & v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			if (v < 0)
+				v += 0x100000000;
+			stack[0] = v;
+			return true;
+		}
+
+		function i_BOR(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			v = stack[0] | v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			if (v < 0)
+				v += 0x100000000;
+			stack[0] = v;
+			return true;
+		}
+
+		function i_BXOR(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			v = stack[0] ^ v;
+			if (!isFinite(v))
+				return err_numeric_error();
+			if (v < 0)
+				v += 0x100000000;
+			stack[0] = v;
+			return true;
+		}
+
+		function i_BNOT(param)
+		{
+			var v;
+			if (stack.length < 1)
+				return err_stack_underflow();
+			v = ~stack[0] & 0xFFFFFFFF;
+			if (!isFinite(v))
+				return err_numeric_error();
+			if (v < 0)
+				v += 0x100000000;
+			stack[0] = v;
+			return true;
+		}
+				
+		function i_CMP(param)
+		{
+			var v;
+			if (stack.length < 2)
+				return err_stack_underflow();
+			v = stack.shift();
+			stack[0] = (stack[0] == v) ? 0 : ((stack[0] > v) ? 1 : -1);
+			return true;
+		}
+		
+		function i_SETEQ(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			stack[0] = (stack[0] == 0) ? 1 : 0;
+			return true;
+		}
+		
+		function i_SETNE(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			stack[0] = (stack[0] != 0) ? 1 : 0;
+			return true;
+		}
+		
+		function i_SETLE(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			stack[0] = (stack[0] <= 0) ? 1 : 0;
+			return true;
+		}
+		
+		function i_SETGE(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			stack[0] = (stack[0] >= 0) ? 1 : 0;
+			return true;
+		}
+		
+		function i_SETLT(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			stack[0] = (stack[0] < 0) ? 1 : 0;
+			return true;
+		}
+		
+		function i_SETGT(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			stack[0] = (stack[0] > 0) ? 1 : 0;
+			return true;
+		}
+		
+		function i_JYES(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			var v = stack.shift();
+			if (v == 0)
+				return true;
+			return i_JMP(param);
+		}
+		
+		function i_JNO(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			var v = stack.shift();
+			if (v != 0)
+				return true;
+			return i_JMP(param);
+		}
+		
+		function i_JMP(param)
+		{
+			var v = eval_valparam(param);
+			if (v === null)
+				return false;
+			if ((v < 0) || (v >= program.length))
+				return err_bad_address();
+			progpos = v;
+			return true;
+		}
+		
+		function i_CALL(param)
+		{
+			stack.unshift(progpos);
+			return i_JMP(param);
+		}
+
+		function i_RET(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			var v = stack.shift();
+			if ((v < 0) || (v >= program.length))
+				return err_bad_address();
+			progpos = v;
+			return true;
+		}
+		
+		function i_EXIT(param)
+		{
+			progpos = program.length;
+		}
+
+		function i_GET(param)
+		{
+			var inp = document.getElementsByName('input')[0].value.substring(inpos);
+			var ilen = inp.length;
+			var s = '';
+			var i = 0;
+			while ((i < ilen) && (inp[i] <= ' '))
+				i++;
+			while (i < ilen)
+			{
+				if ((inp[i] == "\n") || (inp[i] == "\r"))
+					break;
+				s += inp[i];
+				i++;
+			}
+			while ((i < ilen) && (inp[i] <= ' '))
+				i++;
+			s = cut_spaces(s);
+			if (s.length == 0)
+				return err_end_of_input();
+			var v = Number(s);
+			if (!isFinite(v))
+				return err_numeric_error();
+			stack.unshift(v);
+			inpos += i;
+			return true;
+		}
+		
+		function i_PUT(param)
+		{
+			if (stack.length < 1)
+				return err_stack_underflow();
+			var outp = document.getElementsByName('output')[0];
+			outp.value += stack.shift().toString() + "\n";
+			return true;
+		}
+
+		function i_EOI(param)
+		{
+			var inp = document.getElementsByName('input')[0].value.substring(inpos);
+			var ilen = inp.length;
+			var i = 0;
+			while ((i < ilen) && (inp[i] <= ' '))
+				i++;
+			var v = (i < ilen) ? 0 : 1;
+			stack.unshift(v);
+			return true;
+		}
+		
+		function prog_step()
+		{
+			var instr, func;
+			if (progpos >= program.length)
+				return err_out_of_program();
+			instr = program[progpos];
+			func = 'i_' + instr[0] + '(instr[1])';
+			progpos++;
+			return eval(func);
+		}
+
+		function prog_run_button()
+		{
+			if (errmsg)
+				return;
+			while (progpos < program.length)
+			{
+				if (!prog_step())
+					break;
+			}
+			update_display();
+		}
+
+		function prog_step_button()
+		{
+			if (errmsg)
+				return;
+			prog_step();
+			update_display();
+		}
+
+		function prog_reset_button()
+		{
+			prog_reset();
+			update_display();
+		}
+
+		function numaddr(n)
+		{
+			return n.toString().padStart(4, '0');
+		}
+
+		function clear_display(d)
+		{
+			while (d.firstChild)
+				d.removeChild(d.lastChild);
+		}
+		
+		function isNameChar(ch, first)
+		{
+			if ((ch >= 'A') && (ch <= 'Z'))
+				return true;
+			if (!first && ((ch >= '0') && (ch <= '9')))
+				return true;
+			return false;
+		}
+		
+		function addrspec_to_string(id, p)
+		{
+			var s;
+
+			if (p[0] >= 3)
+				s = numaddr(p[1]);
+			else
+				s = addrspec_to_string(p[0], p[1]);
+
+			if (id == 0)
+				return '[' + s + ']';
+			if (id == 1)
+				return '<' + s + '>';
+			return '|' + s + '|';
+		}
+		
+		function param_to_string(p)
+		{
+			if (p[0] >= 3)
+				return p[1].toString();
+			return addrspec_to_string(p[0], p[1]);
+		}
+		
+		function instr_to_string(n)
+		{
+			str = '<font color="aquamarine">' + program[n][0] + '</font>';
+			if (program[n][1])
+				str += '<font color="salmon">&nbsp;&nbsp;' + param_to_string(program[n][1])+ '</font>';
+			return str;
+		}
+		
+		function update_display()
+		{
+			var i;
+			prog_display = document.getElementsByName('code')[0];
+			clear_display(prog_display);
+			var so = null;
+			for (i = 0; i < program.length; i++)
+			{
+				o = document.createElement('div');
+				o.innerHTML = '<font color="gold">{' + numaddr(i) + '}:&nbsp;&nbsp;</font>' + instr_to_string(i);
+				data_display.insertBefore(o, null);
+				if (i == progpos)
+				{
+					o.style = 'background: indigo';
+					so = o;
+				}
+				prog_display.insertBefore(o, null);
+			}
+			if (so)
+				so.scrollIntoView(false);
+			if (i == 0)
+			{
+				o = document.createElement('div');
+				o.innerHTML = '<center><font color="aquamarine">* ПУСТО *</font></center>';
+				prog_display.insertBefore(o, null);
+			}
+
+			if (!helpmode)
+			{
+				data_display = document.getElementsByName('data')[0];
+				clear_display(data_display);
+				for (i = 0; i < data.length; i++)
+				{
+					o = document.createElement('div');
+					o.innerHTML = '<font color="gold">[' + numaddr(i) + ']:&nbsp;&nbsp;</font><font color="aquamarine">' + data[i] + '</font>';
+					data_display.insertBefore(o, null);
+				}
+			}
+			
+			stack_display = document.getElementsByName('stack')[0];
+			clear_display(stack_display);
+			for (i = 0; i < stack.length; i++)
+			{
+				o = document.createElement('div');
+				o.innerHTML = '<font color="gold">&lt;' + numaddr(i) + '&gt;:&nbsp;&nbsp;</font><font color="aquamarine">' + stack[i] + '</font>';
+				if (i == stack.length - framepos)
+					o.style = 'background: indigo';
+				stack_display.insertBefore(o, null)
+			}
+			if (i == 0)
+			{
+				o = document.createElement('div');
+				o.innerHTML = '<center><font color="aquamarine">* ПУСТО *</font></center>';
+				stack_display.insertBefore(o, null);
+			}
+			
+			statusmsg = document.getElementsByName('statusmsg')[0];
+			if (errmsg)
+				statusmsg.innerHTML = '<font color="red">Ошибка: ' + errmsg + '</font>';
+			else if (progpos < program.length)
+				statusmsg.innerHTML = 'PC = ' + numaddr(progpos);
+			else if (program.length == 0)
+				statusmsg.innerHTML = '** ПРОГРАММА ПУСТА **';
+			else
+				statusmsg.innerHTML = '** КОНЕЦ **';
+		}
+		
+		function parse_number(s, i)
+		{
+			var v = Number(s.substring(i));
+			if (!isFinite(v))
+				return null;
+			return [3, v];
+		}
+		
+		function parse_label(s, i)
+		{
+			var l = '';
+			var first = true;
+			while (i < s.length)
+			{
+				if (!isNameChar(s[i], first))
+					return null;
+				l += s[i];
+				first = false;
+				i++;
+			}
+			return [4, l];
+		}
+
+		function parse_addrspec(s, i, nested)
+		{
+			var id, end;
+			var v;
+			var j;
+			var llen = s.length;
+
+			if (i >= llen)
+				return null;
+
+			if (s[i] == '[')
+			{
+				end = ']';
+				id = 0;
+				i++;
+			}
+			else if (s[i] == '<')
+			{
+				end = '>';
+				id = 1;
+				i++;
+			}
+			else if (s[i] == '|')
+			{
+				end = '|';
+				id = 2;
+				i++;
+			}
+
+			if (i >= llen)
+				return null;
+
+			if ((s[i] == '[') || (s[i] == '<') || (s[i] == '|'))
+			{
+				 v = parse_addrspec(s, i, true);
+				 if (!v)
+					return null;
+				 if (s[v[0]] != end)
+					return null;
+				 i = v[0] + 1;
+				 v = v[1];
+				 if (nested)
+					return [i, [id, v]]
+				 else
+					return (i == llen) ? [id, v] : null;
+			}
+			else
+			{
+				j = i;
+				while (j < s.length)
+				{
+					if (s[j] == end)
+					{
+						v = parseInt(s.substr(i, j));
+						if (!isFinite(v))
+							return null;
+						if (nested)
+							return [j + 1, [id, [3, v]]]
+						else
+							return (j + 1 == llen) ? [id, [3, v]] : null;
+					}
+					j++;
+				}
+			}
+		}
+
+		function parse_param(s)
+		{
+			var i, llen;
+			i = 0;
+			llen = s.length;
+			while ((i < llen) && (s[i] <= ' '))
+				i++;
+			if ((s[i] == '[') || (s[i] == '<') || (s[i] == '|'))
+				return parse_addrspec(s, i, false);
+			if (((s[i] >= '0') && (s[i] <= '9')) || (s[i] == '-') || (s == '+'))
+				return parse_number(s, i);
+			return parse_label(s, i);
+		}
+
+		function program_line(pl)
+		{
+			var label, name, param;
+			var first, llen;
+			var line;
+			var i;
+			
+			if (pl.length == 0)
+				return true;
+
+			line = pl.toUpperCase();
+			i = 0;
+			llen = line.length;
+			name = '';
+			first = true;
+			while ((i < llen) && isNameChar(line[i], first))
+			{
+				first = false;
+				name += line[i];
+				i++;
+			}
+
+			if ((i < llen) && (line[i] == ':'))
+			{
+				i++;
+				label = name;
+				while ((i < llen) && (line[i] <= ' '))
+					i++;
+				name = '';
+				first = true;
+				while ((i < llen) && isNameChar(line[i], first))
+				{
+					first = false;
+					name += line[i];
+					i++;
+				}
+			}
+			else
+				label = null;
+
+			param = '';
+			while ((i < llen))
+			{
+				param += line[i];
+				i++;
+			}
+
+			if (label)
+			{
+				if (labels.has(label))
+					return err_label_exists();
+				labels.set(label, program.length);
+			}
+			if (param.length == 0)
+				param = null;
+			else
+				param = parse_param(param);
+
+			for (i = 0; i < instructions.length; i++)
+			{
+				if (name == instructions[i][0])
+					break;
+			}
+			if (i == instructions.length)
+				return err_no_such_instruction();
+			
+			if (param)
+			{
+				if (instructions[i][1] == 0)
+					return err_bad_param();
+				if (((param[0] == 0) || (param[0] == 1) || (param[0] == 2)) && !(instructions[i][1] & 1))
+					return err_bad_param();
+				if ((param[0] == 3) && !(instructions[i][1] & 2))
+					return err_bad_param();
+				if ((param[0] == 4) && !(instructions[i][1] & 4))
+					return err_bad_param();
+			}
+			else
+			{
+				if (instructions[i][1] != 0)
+					return err_parameter_required();
+			}
+			program.push([name, param]);
+			return true;
+		}
+
+		function prog_reset()
+		{
+			stack = [];
+			progpos = 0;
+			framepos = 0;
+			inpos = 0;
+			var outp = document.getElementsByName('output')[0];
+			outp.value = '';
+			errmsg = null;
+		}
+
+		function reset()
+		{
+			var i;			
+			program = [];
+			data = [];
+			for (i = 0; i < 4096; i++)
+				data.push(0);
+			prog_reset();
+			labels = new Map();
+		}
+
+		function cut_spaces(line)
+		{
+			var s = ''
+			var ll = line.length - 1;
+			while ((ll > 0) && (line[ll] <= ' '))
+				ll--;
+			var i = 0;
+			while ((i <= ll) && (line[i] <= ' '))
+				i++;
+			while (i <= ll)
+			{
+				s += line[i];
+				i++;
+			}
+			return s;
+		}
+
+		function load_program()
+		{
+			var i;
+			
+			reset();			
+			ed = document.getElementsByName('editor')[0].value;
+			line = '';
+			for (i = 0; i < ed.length; i++)
+			{
+				if ((ed[i] == "\n") || (ed[i] == "\r"))
+				{
+					line = cut_spaces(line);
+					if (!program_line(line))
+						break;
+					line = '';
+				}
+				else
+				{
+					line += ed[i];
+				}
+			}
+			if (!errmsg && (line.length > 0))
+			{
+				line = cut_spaces(line);
+				program_line(line);
+			}
+			if (!errmsg)
+				resolve_labels();
+			progpos = 0;
+			if (errmsg)
+			{
+				if (line)
+					errmsg = errmsg + ' (' + line + ')';
+				program = [];
+			}
+			update_display();
+		}
+		
+		function display_help()
+		{
+			if (helpmode)
+			{
+				helpmode = false;
+				document.getElementsByName('data_caption')[0].innerHTML='Данные';
+				document.getElementsByName('help_button')[0].value='Помощь';
+				update_display();
+			}
+			else
+			{
+				helpmode = true;
+				document.getElementsByName('data_caption')[0].innerHTML='Помощь';
+				document.getElementsByName('help_button')[0].value='Данные';
+				data_display = document.getElementsByName('data')[0];
+				clear_display(data_display);
+				o = document.createElement('div');
+				o.style='width: 100%; height: 100%;'
+				o.innerHTML='<iframe src="help.html" seamless frameborder="0" width="100%" height="100%"></iframe>'
+				data_display.insertBefore(o, null);
+			}
+		}
+		
+		function edit_tab(o, ev)
+		{
+			var start = o.selectionStart;
+			var end = o.selectionEnd;
+			ev.preventDefault();
+			o.value = o.value.substring(0, start) + "\t" + 
+				o.value.substring(end);
+			o.selectionStart = o.selectionEnd = start + 1;
+		}
+
+		function edit_enter(o, ev)
+		{
+			var start = o.selectionStart;
+			var end = o.selectionEnd;
+			ev.preventDefault();
+			o.value = o.value.substring(0, start) + "\n\t\t" + 
+				o.value.substring(end);
+			o.selectionStart = o.selectionEnd = start + 3;
+		}
+		
+		function editkey(ev)
+		{
+			if (ev.keyCode == 9)
+				edit_tab(this, ev);
+			else if (ev.keyCode == 13)
+				edit_enter(this, ev);
+		}
+		
+		function genmath()
+		{
+			var math = [
+				'abs', 'acos', 'acosh', 'asin', 'asinh',
+				'atan', 'atanh', 'cbrt', 'ceil', 'cos', 'cosh',
+				'exp', 'expm1', 'floor', 'log', 'log10', 'log1p',
+				'log2', 'round', 'sign', 'sin', 'sinh', 'sqrt',
+				'tan', 'tanh', 'trunc'
+			];
+			var mconst = [
+				'E', 'PI', 'LN2', 'LN10', 'LOG2E', 'LOG10E',
+				'SQRT1_2', 'SQRT2'
+			];
+			var i;
+				
+			for (i = 0; i < math.length; i++)
+			{
+				var um = math[i].toUpperCase();
+				instructions.push([um, 0]);
+				eval(' i_' + um + ' = function(param) {var v; if (stack.length < 1) return err_stack_underflow(); v = Math.' 
+				+ math[i] + '(stack[0]); if (!isFinite(v)) return err_numeric_error(); stack[0] = v; return true; }')
+			}
+
+			for (i = 0; i < mconst.length; i++)
+			{
+				instructions.push([mconst[i], 0]);
+				eval(' i_' + mconst[i] + ' = function(param) { stack.unshift(Math.'  + mconst[i] + ');  return true; }')
+			}
+		}
+		
+		function main_init()
+		{
+			genmath();
+			var editor = document.getElementsByName('editor')[0];
+			editor.addEventListener('keydown', editkey);
+			editor.value = "\t\t";
+			reset();
+			helpmode = 0;
+			update_display();
+		}
+	</script>
+</head>
+<body onload="main_init()">
+	<div class="main">
+		<form name="program_area">
+			<table border="0" cellspacing="5" cellpadding="0" width="100%">
+				<tr>
+					<td align="center">Код</td><td align="center"><div name="data_caption">Данные</div></td><td align="center">Стек</td>
+				</tr>
+				<tr>
+					<td align="center" valign="middle">
+						<div class="container">
+							<div class="disp_window" name="code"></div>
+						</div>
+					</td>
+					<td width="33%" height="100%" align="center" valign="middle">
+						<div class="container">
+							<div class="disp_window" name="data"></div>
+						</div>
+					</td>
+					<td width="33%" align="center" valign="middle">
+						<div class="container">
+							<div class="disp_window" name="stack"></div>
+						</div>
+					</td>
+				</tr>
+				<tr height="50px">
+					<td align="center" valign="middle">
+						<table border="0" cellspacing="0" cellpadding="0" width="100%">
+						<tr>
+							<td colspan="3">
+								<table border="0" cellspacing="0" cellpadding="0" width="100%">
+								<tr>
+									<td width="25%" align="center"><input type="button" class="controlbutton" name="load" onclick="load_program();" value="Загрузить"></td>
+									<td width="25%" align="center"><input type="button" class="controlbutton" name="progstep" onclick="prog_step_button()" value="Шаг"></td>
+									<td width="25%" align="center"><input type="button" class="controlbutton" name="progrun" onclick="prog_run_button()" value="Пуск"></td>
+									<td width="25%" align="center"><input type="button" class="controlbutton" name="progreset" onclick="prog_reset_button()" value="Сброс"></td>
+								</tr>
+								</table>
+							</td>
+						</tr>
+						</table>
+					</td>
+					<td align="center" valign="middle">
+						<input type="button" class="helpbutton" name="help_button" onclick="display_help();" value="Помощь">
+					</td>
+					<td align="center" valign="middle">
+						<div class="statusmsg" name="statusmsg"></div>
+					</td>
+				</tr>
+				<tr><td colspan="3" class="delimiter" align="center" valign="middle"><font size="+2" color="navy">Web-калькулятор</font></td></tr>
+				<tr>
+					<td align="center">Программа</td><td align="center">Ввод</td><td align="center">Вывод</td>
+				</tr>
+				<tr>
+					<td align="center" valign="middle">
+						<div class="container">
+							<textarea name="editor" rows="15" class="progedit" spellcheck="false"></textarea>
+						</div>
+					</td>
+					<td width="33%" align="center" valign="middle">
+						<div class="container">
+							<textarea name="input" rows="15" class="progedit" spellcheck="false"></textarea>
+						</div>
+					</td>
+					<td width="33%" align="center" valign="middle">
+						<div class="container">
+							<textarea name="output" rows="15" class="progedit" spellcheck="false" disabled></textarea>
+						</div>
+					</td>
+				</tr>
+			</table>
+		</form>
+	</div>
+</body>
+</html>

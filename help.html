@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+	<style type="text/css">
+		body {
+			background: darkslategrey;
+			color: floralwhite;
+			font-family: verdana;
+		}
+	</style>
+</head>
+<body>
+<center><b><font color="gold">Помощь по Web-калькулятору</font></b></center>
+<p>Страница Web-калькулятора состоит из двух основных областей: области системы и области пользователя.</p>
+<p>В области системы расположены три окна, в которых отображается текущая загруженная программа, текущие состояния областей данных и операционного стека.
+В области данных программа хранит промежуточные результаты работы, а стек предназначен для хранения операндов команд, локальных переменных подпрограмм и точек возврата из подпрограмм.</p>
+<p>Область пользователя также состоит из трёх окон: окна программы, в котором пользователь вводит программу в систему, окна ввода, куда вводятся данные для 
+считывания их программой с помощью команды <b><font color="aquamarine">GET</font></b> и окна вывода, куда программа выводит результаты вычислений командой <b><font color="aquamarine">PUT</font></b>.</p>
+
+
+<center><b><font color="gold">Структура программы</font></b></center>
+<p>Программа состоит из последовательности командных строк, которые Web-калькулятор выполняет поочерёдно, одна за другой.</p>
+<p>Командная строка имеет следующий вид:<p>
+<p><b><font color="gold">МЕТКА:</font>&nbsp;&nbsp;&nbsp;&nbsp;<font color="aquamarine">КОМАНДА</font>&nbsp;&nbsp;<font color="salmon">ПАРАМЕТР</font></b></p>
+<p>Обязательным является лишь поле команды. Наличие параметра зависит от самой команды, а метки предназначены для назначения команд переходов.</p>
+<center><b><font color="gold">Параметры команд</font></b></center>
+<p><b><font color="salmon">N</font></b> &mdash; непосредственный числовой операнд N</p>
+<p><b><font color="salmon">[A]</font></b> &mdash; операнд находится по адресу A в области данных</p>
+<p><b><font color="salmon">&lt;A&gt;</font></b> &mdash; операнд находится в стеке по смещению A относительно вершины</p>
+<p><b><font color="salmon">|A|</font></b> &mdash; операнд находится в стеке по смещению A относительно начала текущего кадра</p>
+<p><b><font color="salmon">МЕТКА</font></b> &mdash; операндом команды перехода является метка в программе</p>
+<p>Операнды с адресацией допускают вложение. Например, <b><font color="salmon">[&lt;0&gt;]</font></b> означает, что операнд расположен по некоторому адресу в области данных, а сам адрес находится на текущей вершине стека.</p>
+<center><b><font color="gold">Команды</font></b></center>
+<p>Команды Web-калькулятора разделены на категории: команды загрузки/выгрузки данных, управляющие команды, команды ввода/вывода и команды для выполнения арифметических и логических вычислений.</p>
+
+<center><b><font color="gold">Загрузка и выгрузка данных</font></b></center>
+<p><b><font color="aquamarine">PUSH</font>&nbsp;&nbsp;<font color="salmon">X</font></b> &mdash; кладёт на вершину стека операнд, заданный в команде. Параметром может быть непосредственное значение, ссылка на область памяти или метка. 
+В последнем случае в стек кладётся адрес помеченной команды.</p>
+<p><b><font color="aquamarine">POP</font>&nbsp;&nbsp;<font color="salmon">X</font></b> &mdash; берёт число с вершины стека и заносит его по ссылке, заданной в команде. Параметром может быть только ссылка на память.</p>
+<p><b><font color="aquamarine">XCHG</font></b> &mdash; обменивает содержимое двух элементов на вершине стека.</p>
+<p><b><font color="aquamarine">FRM</font></b> &mdash; устанавливает текущую вершину стека как начало стекового кадра. Стековые кадры удобны для фиксированной адресации локальных переменных подпрограммы.</p>
+<p><b><font color="aquamarine">PUSHFR</font></b> &mdash; сохраняет на стеке расстояние от вершины до начала текущего кадра и устанавливает текущую вершину стека как начало стекового кадра. </p>
+<p><b><font color="aquamarine">POPFR</font></b> &mdash; восстанавливает предыдущий стековый кадр, добавляя к текущей позиции число, снятое с вершины стека. </p>
+<p><b><font color="aquamarine">DROP</font>&nbsp;&nbsp;<font color="salmon">N</font></b> &mdash; удаляет N верхних элементов из стека. Параметром может быть только число.</p>
+<p><b><font color="aquamarine">RSRV</font>&nbsp;&nbsp;<font color="salmon">N</font></b> &mdash; резевирует место в стеке, помещая на его вершину N элементов (равных нулю). Параметром может быть только число.</p>
+
+<center><b><font color="gold">Управляющие команды</font></b></center>
+<p><b><font color="aquamarine">JMP</font>&nbsp;&nbsp;<font color="salmon">L</font></b> &mdash; безусловный переход к метке L. Следующей будет выполняться команда, помеченная меткой L. Параметром всех команд перехода может быть как сама метка, так и адрес ячейки памяти, в которой находится адрес для перехода.</p>
+<p><b><font color="aquamarine">JYES</font>&nbsp;&nbsp;<font color="salmon">L</font></b> &mdash; условный переход к метке L если условие истинно. Снимает элемент с вершины стека, и, если он не равен нулю, переходит к команде, помеченной меткой L.</p>
+<p><b><font color="aquamarine">JNO</font>&nbsp;&nbsp;<font color="salmon">L</font></b> &mdash; условный переход к метке L если условие ложно. Снимает элемент с вершины стека, и, если он равен нулю, переходит к команде, помеченной меткой L.</p>
+<p><b><font color="aquamarine">CALL</font>&nbsp;&nbsp;<font color="salmon">L</font></b> &mdash; вызов подпрограммы. Кладёт адрес следующей команды на стек, и переходит к метке L аналогично команде <b><font color="aquamarine">JMP</font></b>.</p>
+<p><b><font color="aquamarine">RET</font></b> &mdash; возврат из подпрограммы.  Снимает число с вершины стека, и использует его как адрес следующей команды.</p>
+<p><b><font color="aquamarine">EXIT</font></b> &mdash; выход. Выполнение программы завершается.</p>
+
+<center><b><font color="gold">Ввод и вывод</font></b></center>
+<p><b><font color="aquamarine">GET</font></b> &mdash; ввод. Читает одно число из пользовательского окна ввода и кладёт его на вершину стека. Ввод производится построчно.</p>
+<p><b><font color="aquamarine">PUT</font></b> &mdash; вывод. Снимает число с вершины стека и записывает его в пользовательское окно вывода. Вывод производится построчно.</p>
+<p><b><font color="aquamarine">EOI</font></b> &mdash; проверка на конец источника ввода (end of input). Кладёт на стек 0, если данные для ввода доступны, и 1, если все данные из окна ввода уже прочитаны, или окно ввода пусто.</p>
+
+<center><b><font color="gold">Арифметические операции</font></b></center>
+<p>Основная группа команд. Двухкомпонетнтые операции (такие, как сложение) выполняют действие над операндами <font color="salmon"><b>X</b></font> и <font color="salmon"><b>Y</b></font>, где 
+<font color="salmon"><b>Y</b></font> находится на вершине стека, а <font color="salmon"><b>X</b></font> &mdash; непосредственно под ним. Операнды удаляются из стека, а вместо них на вершину кладётся результат.
+Однокомпонентные операции просто замещают операнд (<font color="salmon"><b>X</b></font>) на вершине стека результатом.</p>
+
+<p><b><font color="aquamarine">ADD</font></b> &mdash; сложение, <font color="salmon"><b>X</b></font> + <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">SUB</font></b> &mdash; вычитание, <font color="salmon"><b>X</b></font> - <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">MUL</font></b> &mdash; умножение, <font color="salmon"><b>X</b></font> &middot; <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">DIV</font></b> &mdash; деление, <font color="salmon"><b>X</b></font> &divide; <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">POW</font></b> &mdash; возведение <font color="salmon"><b>X</b></font> в степень <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">ROOT</font></b> &mdash; извлечение корня степени <font color="salmon"><b>Y</b></font> из <font color="salmon"><b>X</b></font>.</p>
+<p><b><font color="aquamarine">LOGYX</font></b> &mdash; вычисление логарифма <font color="salmon"><b>X</b></font> по основанию <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">MOD</font></b> &mdash; вычисление остатка от деления <font color="salmon"><b>X</b></font> на <font color="salmon"><b>Y</b></font>.</p>
+
+<p><b><font color="aquamarine">ABS</font></b> &mdash; абсолютная величина, |<font color="salmon"><b>X</b></font>|.</p>
+<p><b><font color="aquamarine">CEIL</font></b> &mdash; &laquo;потолок&raquo;, округление до целого, не меньшего <font color="salmon"><b>X</b></font>.</p>
+<p><b><font color="aquamarine">FLOOR</font></b> &mdash; &laquo;пол&raquo;, округление до целого, не большего <font color="salmon"><b>X</b></font>.</p>
+<p><b><font color="aquamarine">ROUND</font></b> &mdash; округление до ближайшего целого.</p>
+<p><b><font color="aquamarine">TRUNC</font></b> &mdash; округление до целого отбрасыванием дробной части.</p>
+
+<p><b><font color="aquamarine">AND</font></b> &mdash; логическое &laquo;И&raquo;, <font color="salmon"><b>X</b></font> &and; <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">OR</font></b> &mdash; логическое &laquo;ИЛИ&raquo;, <font color="salmon"><b>X</b></font> &or; <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">NOT</font></b> &mdash; логическое &laquo;НЕ&raquo;, &not;<font color="salmon"><b>X</b></font>.</p>
+<p><b><font color="aquamarine">XOR</font></b> &mdash; логическое &laquo;исключающее ИЛИ&raquo;, <font color="salmon"><b>X</b></font> &oplus; <font color="salmon"><b>Y</b></font>.</p>
+
+<p>Описываемые ниже побитовые операции работают с 32-битными целыми числами.</p>
+
+<p><b><font color="aquamarine">BAND</font></b> &mdash; побитовое &laquo;И&raquo;, <font color="salmon"><b>X</b></font> &amp; <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">BOR</font></b> &mdash; побитовое &laquo;ИЛИ&raquo;, <font color="salmon"><b>X</b></font> | <font color="salmon"><b>Y</b></font>.</p>
+<p><b><font color="aquamarine">BNOT</font></b> &mdash; побитовое &laquo;НЕ&raquo;, !<font color="salmon"><b>X</b></font>.</p>
+<p><b><font color="aquamarine">BXOR</font></b> &mdash; побитовое &laquo;исключающее ИЛИ&raquo;, <font color="salmon"><b>X</b></font> ^ <font color="salmon"><b>Y</b></font>.</p>
+
+<p>Описываемые ниже тригонометрические операции принимают аргумент в радианах, обратные &mdash; возвращают результат в радианах.</p>
+<p><b><font color="aquamarine">SIN</font></b> &mdash; синус.<p>
+<p><b><font color="aquamarine">COS</font></b> &mdash; косинус.<p>
+<p><b><font color="aquamarine">TAN</font></b> &mdash; тангенс.<p>
+<p><b><font color="aquamarine">SINH</font></b> &mdash; гиперболический синус.<p>
+<p><b><font color="aquamarine">COSH</font></b> &mdash; гиперболический косинус.<p>
+<p><b><font color="aquamarine">TANH</font></b> &mdash; гиперболический тангенс.<p>
+<p><b><font color="aquamarine">ASIN</font></b> &mdash; арксинус.<p>
+<p><b><font color="aquamarine">ACOS</font></b> &mdash; арккосинус.<p>
+<p><b><font color="aquamarine">ATAN</font></b> &mdash; арктангенс.<p>
+<p><b><font color="aquamarine">ASINH</font></b> &mdash; ареасинус.<p>
+<p><b><font color="aquamarine">ACOSH</font></b> &mdash; ареакосинус.<p>
+<p><b><font color="aquamarine">ATANH</font></b> &mdash; ареатангенс.<p>
+
+<p>Логарифмические и экспоненциальные функции.</p>
+<p><b><font color="aquamarine">LOG</font></b> &mdash; натуральный логарифм.<p>
+<p><b><font color="aquamarine">LOG10</font></b> &mdash; десятичный логарифм.<p>
+<p><b><font color="aquamarine">LOG2</font></b> &mdash; двоичный логарифм.<p>
+<p><b><font color="aquamarine">LOG1P</font></b> &mdash; значение функции ln(1+x).<p>
+<p><b><font color="aquamarine">EXP</font></b> &mdash; натуральный антилогарифм (e<sup>x</sup>).<p>
+<p><b><font color="aquamarine">EXPM1</font></b> &mdash; значение функции e<sup>x</sup>+1.<p>
+
+<p>Операции сравнения и проверки условий.</p>
+
+<p><b><font color="aquamarine">CMP</font></b> &mdash; сравнение <font color="salmon"><b>X</b></font> c <font color="salmon"><b>Y</b></font>. Результатом является 1, если
+<font color="salmon"><b>X</b></font> &gt; <font color="salmon"><b>Y</b></font>, -1, если <font color="salmon"><b>X</b></font> &lt; <font color="salmon"><b>Y</b></font> и 0, если
+<font color="salmon"><b>X</b></font> = <font color="salmon"><b>Y</b></font>.</p>
+
+<p>Описываемые ниже команды берут результат сравнения (+1, -1 или 0) и возвращают &laquo;истинно&raquo; или &laquo;ложно&raquo; для заданного условия.</p>
+<p><b><font color="aquamarine">SETEQ</font></b> &mdash; проверка на равенство. Возвращает 1, если <font color="salmon"><b>X</b></font> = 0, и 0, если <font color="salmon"><b>X</b></font> &ne; 0.</p>
+<p><b><font color="aquamarine">SETNE</font></b> &mdash; проверка на неравенство. Возвращает 1, если <font color="salmon"><b>X</b></font> &ne; 0, и 0, если <font color="salmon"><b>X</b></font> = 0.</p>
+<p><b><font color="aquamarine">SETLE</font></b> &mdash; проверка на &laquo;меньше или равно&raquo;. Возвращает 1, если <font color="salmon"><b>X</b></font> &le; 0, и 0, если <font color="salmon"><b>X</b></font> &gt; 0.</p>
+<p><b><font color="aquamarine">SETGE</font></b> &mdash; проверка на &laquo;больше или равно&raquo;. Возвращает 1, если <font color="salmon"><b>X</b></font> &ge; 0, и 0, если <font color="salmon"><b>X</b></font> &lt; 0.</p>
+<p><b><font color="aquamarine">SETLT</font></b> &mdash; проверка на &laquo;меньше&raquo;. Возвращает 1, если <font color="salmon"><b>X</b></font> &lt; 0, и 0, если <font color="salmon"><b>X</b></font> &ge; 0.</p>
+<p><b><font color="aquamarine">SETGT</font></b> &mdash; проверка на &laquo;больше&raquo;. Возвращает 1, если <font color="salmon"><b>X</b></font> &gt; 0, и 0, если <font color="salmon"><b>X</b></font> &le; 0.</p>
+
+</body>
+</html>
